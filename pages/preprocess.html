@@ -1,0 +1,861 @@
+<div class="h-[calc(100vh-150px)] overflow-hidden flex flex-col">
+    <div class="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4 h-full overflow-hidden">
+
+        <!-- Left: Real Docx Viewer -->
+        <div class="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden h-full min-w-0">
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-blue-600 p-1.5 rounded">
+                        <i data-lucide="file-text" class="w-4 h-4 text-white"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800">新核心系统_软件需求规格说明书_存款组_存款证明_V0.95.docx</h4>
+                        <p class="text-[10px] text-slate-400" id="docx-status">正在实时解析本地文件...</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button class="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
+                    <button class="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500"><i data-lucide="zoom-out" class="w-4 h-4"></i></button>
+                    <div class="w-px h-6 bg-slate-200 mx-2"></div>
+                    <button class="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500"><i data-lucide="download" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+
+            <div class="flex-1 bg-slate-100/50 flex overflow-hidden" id="docx-viewer-container">
+                <aside class="w-56 shrink-0 bg-white border-r border-slate-200 flex flex-col h-full">
+                    <div class="px-4 py-3 text-xs font-bold text-slate-500 border-b border-slate-100 flex items-center bg-white sticky top-0 z-10">
+                        <i data-lucide="list-tree" class="w-4 h-4 mr-2"></i>
+                        标题导航
+                    </div>
+                    <div id="docx-toc" class="flex-1 overflow-y-auto overscroll-contain p-3 space-y-1 text-xs">
+                        <div class="text-slate-400 px-2">解析后自动生成目录...</div>
+                    </div>
+                </aside>
+                <div class="flex-1 overflow-y-auto overscroll-contain p-4 lg:p-6 flex justify-center" id="docx-scroll-area">
+                    <div id="docx-content" class="w-full max-w-[1480px] bg-white shadow-2xl p-8 lg:p-10 min-h-full relative">
+                        <div id="docx-loading" class="flex flex-col items-center justify-center py-20 space-y-4">
+                            <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                            <p class="text-slate-500 font-medium">Mammoth.js 正在尝试从根目录抓取并解析文档...</p>
+                            <p class="text-[10px] text-slate-400" id="fetch-log">等待网络请求响应...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Test Requirements Panel -->
+        <div class="flex flex-col h-full overflow-hidden">
+            <div class="flex-1 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col" style="height: 100%;">
+                <div class="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-blue-600 p-1.5 rounded">
+                            <i data-lucide="clipboard-check" class="w-4 h-4 text-white"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800">本功能需求清单</h4>
+                            <p class="text-[10px] text-slate-400">逐条核对需求 <span class="text-blue-600 font-bold" id="req-count">15</span> 条</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <button onclick="alert('选中多个条目后点击此按钮进行合并')" class="px-2 py-1 bg-white border border-slate-300 text-slate-600 text-[10px] font-medium rounded-lg hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700 transition-colors flex items-center gap-1">
+                            <i data-lucide="combine" class="w-3 h-3"></i>
+                            合并
+                        </button>
+                        <button onclick="alert('选中一个条目后点击此按钮进行拆分')" class="px-2 py-1 bg-white border border-slate-300 text-slate-600 text-[10px] font-medium rounded-lg hover:bg-orange-50 hover:border-orange-400 hover:text-orange-700 transition-colors flex items-center gap-1">
+                            <i data-lucide="scissors" class="w-3 h-3"></i>
+                            拆分
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto overscroll-contain p-5 space-y-3" id="reqList">
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors cursor-pointer" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">本功能用于为客户开立证明其在我行开立的存款账户，于某一时点或某一时段的存款余额的存款证明书。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">存款证明分为时点证明和时段证明。时点证明无需对账户进行止付，时点可以为上一日的账户日终余额，也可以为当前及历史开具证明时的账户余额。时段证明需要对账户进行止付，直到提前收回客户所有证明或证明到期才可以对账户解除止付。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">存款账户在挂失、冻结、止付、质押状态或是账户可用余额不足的，不能开立存款证明书。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">当一份存款证明书涉及到多个账户时，这些账户必须是属于同一个客户方可办理（即在同一客户号下）。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">可基于各类存款账户，包括个人账户提供存款证明。个人账户含活期、各定期储种等。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">时段存款证明书做的账户止付为金额止付，不影响账户资金转入或者结息（例如定期到期自动转存）。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">时段存款证明开立的证明金额不能大于账户可用余额。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">存款证明开立时需关联重空凭证付出。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">个人和对公存款证明仅支持在开户机构开立。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">开立时点证明时，支持当日余额，以及过往的日终账户余额开具存款证明。时长不能超过1年。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">存款证明开立支持录入起始和终止凭证序号，并需要校验起始凭证号是否为柜员尾箱的最小凭证号。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">存款证明开立后，系统自动在存款账户的交易明细中登记相关记录，便于后续查询和核对。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">柜员可通过系统实时查询已开立存款证明的明细清单，包括证明编号、开立时间、金额等信息。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">客户缴回存款证明时，系统支持作废处理，并同步更新账户止付状态，释放可用余额。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="req-card group border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-white" onclick="toggleCard(this, event)">
+                        <div class="flex items-start gap-3">
+                            <div class="flex flex-col items-center gap-0.5">
+                                <div class="checkbox-area flex-shrink-0 w-4 h-4 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-blue-400 transition-colors" onclick="toggleCheckbox(this, event)">
+                                    <i data-lucide="check" class="w-2.5 h-2.5 text-white hidden check-icon"></i>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleEditMode();" class="text-slate-400 hover:text-amber-600 transition-colors p-0.5">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div class="text-content flex-1" onclick="startEdit(this, event)">
+                                <p class="text-sm text-slate-700 leading-relaxed">存款证明到期后自动失效，系统在到期日前通过短信或电话提醒客户及时办理相关手续。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="p-5 border-t border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50">
+                    <div class="flex items-center justify-between mb-4 flex-shrink-0">
+                        <button id="selectAllBtn" onclick="toggleSelectAll()" class="px-2 py-1 bg-white border border-slate-300 text-slate-600 text-[10px] font-medium rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-colors flex items-center gap-1">
+                            <i data-lucide="check-square" class="w-3 h-3"></i>
+                            全选
+                        </button>
+                        <div class="flex items-center gap-4">
+                            <div class="text-xs text-slate-400">
+                                已核对 <span class="text-blue-600 font-bold" id="checked-count">0</span> / <span id="req-count-bottom">11</span> 条
+                            </div>
+                            <div class="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                <div id="progress-bar" class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="completeAndSync()" id="syncBtn" class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-all shadow-md">
+                        <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                        同步至规划智能体，校验下一功能
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    (function() {
+        const docxFileName = '新核心系统_软件需求规格说明书_存款组_存款证明_V0.95.docx';
+        const contentContainer = document.getElementById('docx-content');
+        const statusText = document.getElementById('docx-status');
+        const fetchLog = document.getElementById('fetch-log');
+        const tocContainer = document.getElementById('docx-toc');
+        const docScrollArea = document.getElementById('docx-scroll-area');
+
+        function buildToc() {
+            const headings = contentContainer.querySelectorAll('h1, h2, h3');
+            if (!headings.length) {
+                tocContainer.innerHTML = '<div class="text-slate-400">未识别到标题</div>';
+                return;
+            }
+            tocContainer.innerHTML = '';
+            headings.forEach((heading, index) => {
+                if (!heading.id) {
+                    heading.id = `docx-heading-${index}`;
+                }
+                const level = heading.tagName.toLowerCase();
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `w-full text-left rounded px-2 py-1.5 hover:bg-blue-50 hover:text-blue-700 transition-colors ${
+                    level === 'h1' ? 'font-bold text-slate-800' : level === 'h2' ? 'pl-4 text-slate-700' : 'pl-7 text-slate-500'
+                }`;
+                btn.textContent = heading.textContent.trim();
+                btn.onclick = () => {
+                    const targetTop = heading.getBoundingClientRect().top - docScrollArea.getBoundingClientRect().top + docScrollArea.scrollTop - 12;
+                    docScrollArea.scrollTo({ top: targetTop, behavior: 'smooth' });
+                };
+                tocContainer.appendChild(btn);
+            });
+        }
+
+        function renderPagedContent(renderedHtml) {
+            const source = document.createElement('div');
+            source.className = 'docx-rendered-content';
+            source.innerHTML = renderedHtml;
+
+            const pagesRoot = document.createElement('div');
+            pagesRoot.className = 'docx-pages';
+
+            const createPage = () => {
+                const page = document.createElement('section');
+                page.className = 'word-page';
+                const body = document.createElement('div');
+                body.className = 'word-page-body docx-rendered-content';
+                page.appendChild(body);
+                return page;
+            };
+
+            let currentPage = createPage();
+            pagesRoot.appendChild(currentPage);
+
+            Array.from(source.childNodes).forEach((node) => {
+                const isHeading = node.nodeType === 1 && ['H1', 'H2'].includes(node.tagName);
+                const currentBody = currentPage.querySelector('.word-page-body');
+                if (isHeading && currentBody.childNodes.length > 0) {
+                    currentPage = createPage();
+                    pagesRoot.appendChild(currentPage);
+                }
+                currentPage.querySelector('.word-page-body').appendChild(node.cloneNode(true));
+            });
+
+            return pagesRoot.outerHTML;
+        }
+
+        function postProcessDocxContent() {
+            const content = contentContainer;
+            const seen = new Set();
+            content.querySelectorAll('img').forEach((img) => {
+                if (seen.has(img)) return;
+                seen.add(img);
+                img.loading = 'lazy';
+                img.onerror = () => {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'docx-image-fallback';
+                    fallback.innerHTML = '<span>📷 图片加载失败，请以原始 Word 为准</span>';
+                    img.replaceWith(fallback);
+                };
+            });
+            const vmlSelectors = 'v\\:shape, v\\:image, v\\:fill, v\\:imagedata, [style*="mso-source-file-name"]';
+            content.querySelectorAll(vmlSelectors).forEach((el) => {
+                if (seen.has(el)) return;
+                seen.add(el);
+                const href = el.getAttribute('href') || el.getAttribute('o:href') ||
+                             el.getAttribute('src') || el.getAttribute('mso-source-file-name') || '';
+                if (!href || href === '' || href === 'undefined') return;
+                const img = document.createElement('img');
+                img.src = href;
+                img.alt = 'Word嵌入图片';
+                img.style = 'max-width: 100%; height: auto; border-radius: 4px; margin: 0.75rem 0;';
+                img.loading = 'lazy';
+                img.onerror = () => {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'docx-image-fallback';
+                    fallback.innerHTML = '<span>🖼 嵌入图片/OLE对象无法预览，请以原始 Word 为准</span>';
+                    img.replaceWith(fallback);
+                };
+                el.replaceWith(img);
+            });
+        }
+
+        async function loadDocx() {
+            if (typeof mammoth === 'undefined') {
+                fetchLog.innerHTML = '<span class="text-red-500 font-bold">错误：Mammoth.js 未加载成功。</span>';
+                statusText.innerText = "依赖加载失败";
+                return;
+            }
+
+            const pathsToTry = [
+                `/${docxFileName}`,
+                `../${docxFileName}`,
+                `./${docxFileName}`
+            ];
+
+            let success = false;
+            for (const path of pathsToTry) {
+                if (success) break;
+
+                try {
+                    fetchLog.innerText = `尝试从路径 ${path} 读取...`;
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 4000);
+                    const response = await fetch(path, { signal: controller.signal, cache: 'no-store' });
+                    clearTimeout(timer);
+
+                    if (response.ok) {
+                        fetchLog.innerText = `成功获取二进制流，开始渲染...`;
+                        const arrayBuffer = await response.arrayBuffer();
+                        const result = await mammoth.convertToHtml(
+                            { arrayBuffer: arrayBuffer },
+                            {
+                                convertImage: mammoth.images.inline((element) => {
+                                    return element.read('base64').then((imageBuffer) => ({
+                                        src: `data:${element.contentType};base64,${imageBuffer}`
+                                    }));
+                                })
+                            }
+                        );
+                        const renderedHtml = (result && (result.value || result.html)) ? (result.value || result.html) : '';
+                        if (!renderedHtml.trim()) {
+                            throw new Error('文档解析返回空内容');
+                        }
+
+                        contentContainer.innerHTML = renderPagedContent(renderedHtml);
+                        postProcessDocxContent();
+                        statusText.innerText = `已从 ${path} 成功加载原文`;
+                        buildToc();
+                        success = true;
+                    } else {
+                        fetchLog.innerText = `路径 ${path} 响应 ${response.status}，继续尝试...`;
+                    }
+                } catch (e) {
+                    console.error(`Failed path ${path}:`, e);
+                    fetchLog.innerText = `路径 ${path} 读取失败，继续尝试...`;
+                }
+            }
+
+            if (!success) {
+                fetchLog.innerHTML = '<span class="text-red-500 font-bold">错误：无法在根目录找到该 Word 文件。</span><br>请检查文件名是否准确，或将文件移动到项目根目录下。';
+                statusText.innerText = "文件加载失败";
+                tocContainer.innerHTML = '<div class="text-red-500">目录生成失败</div>';
+            }
+
+            lucide.createIcons();
+        }
+
+        setTimeout(loadDocx, 100);
+
+        let isEditMode = false;
+         let isAllSelected = false;
+
+         window.updateProgress = function() {
+             const cards = document.querySelectorAll('#reqList .req-card');
+             const checkboxes = document.querySelectorAll('#reqList .checkbox-area');
+             let checked = 0;
+             checkboxes.forEach((cb) => {
+                 if (cb.classList.contains('bg-blue-500')) checked++;
+             });
+             const total = cards.length;
+             const percent = total > 0 ? Math.round((checked / total) * 100) : 0;
+
+             const countEl = document.getElementById('checked-count');
+             const countBottomEl = document.getElementById('req-count-bottom');
+             const progressBar = document.getElementById('progress-bar');
+             if (countEl) countEl.textContent = checked;
+             if (countBottomEl) countBottomEl.textContent = total;
+             if (progressBar) progressBar.style.width = percent + '%';
+
+             const reqCountTop = document.getElementById('req-count');
+             if (reqCountTop) reqCountTop.textContent = total;
+         };
+
+         window.toggleSelectAll = function() {
+            const cards = document.querySelectorAll('#reqList .req-card');
+            const checkboxes = document.querySelectorAll('#reqList .checkbox-area');
+            const btn = document.getElementById('selectAllBtn');
+
+            isAllSelected = !isAllSelected;
+
+            cards.forEach((card, i) => {
+                const checkbox = checkboxes[i];
+                const icon = checkbox.querySelector('.check-icon');
+                if (isAllSelected) {
+                    checkbox.classList.add('bg-blue-500', 'border-blue-500');
+                    checkbox.classList.remove('border-slate-300');
+                    icon.classList.remove('hidden');
+                    card.classList.add('bg-blue-50/30');
+                } else {
+                    checkbox.classList.remove('bg-blue-500', 'border-blue-500');
+                    checkbox.classList.add('border-slate-300');
+                    icon.classList.add('hidden');
+                    card.classList.remove('bg-blue-50/30');
+                }
+            });
+
+            if (isAllSelected) {
+                btn.classList.add('bg-blue-100', 'border-blue-400', 'text-blue-700');
+            } else {
+                btn.classList.remove('bg-blue-100', 'border-blue-400', 'text-blue-700');
+            }
+            updateProgress();
+        };
+
+        window.toggleEditMode = function() {
+            const btn = document.getElementById('editModeBtn');
+            isEditMode = !isEditMode;
+
+            if (isEditMode) {
+                btn.classList.add('bg-amber-100', 'border-amber-400', 'text-amber-700');
+                document.body.classList.add('edit-mode-active');
+            } else {
+                btn.classList.remove('bg-amber-100', 'border-amber-400', 'text-amber-700');
+                document.body.classList.remove('edit-mode-active');
+            }
+        };
+
+        window.toggleCheckbox = function(el, event) {
+            event.stopPropagation();
+            const card = el.closest('.req-card');
+            const icon = el.querySelector('.check-icon');
+
+            if (el.classList.contains('bg-blue-500')) {
+                el.classList.remove('bg-blue-500', 'border-blue-500');
+                el.classList.add('border-slate-300');
+                icon.classList.add('hidden');
+                card.classList.remove('bg-blue-50/30');
+            } else {
+                el.classList.add('bg-blue-500', 'border-blue-500');
+                el.classList.remove('border-slate-300');
+                icon.classList.remove('hidden');
+                card.classList.add('bg-blue-50/30');
+            }
+            updateProgress();
+            lucide.createIcons();
+        };
+
+        window.toggleCard = function(card, event) {
+            if (event.target.closest('.text-content') && isEditMode) return;
+            if (event.target.closest('.text-content') && !isEditMode) {
+                const text = card.querySelector('.text-content p').textContent;
+                locateInDoc(text);
+                return;
+            }
+            const checkbox = card.querySelector('.checkbox-area');
+            toggleCheckbox(checkbox, event);
+        };
+
+        window.locateInDoc = function(searchText) {
+            const docContent = document.getElementById('docx-content');
+            if (!docContent) return;
+
+            docContent.querySelectorAll('.doc-highlight').forEach(el => {
+                const parent = el.parentNode;
+                while (el.firstChild) parent.insertBefore(el.firstChild, el);
+                parent.removeChild(el);
+                parent.normalize();
+            });
+
+            const cleanText = searchText.trim();
+            if (!cleanText) return;
+
+            const walker = document.createTreeWalker(docContent, NodeFilter.SHOW_TEXT, null);
+            const textNodes = [];
+            let node;
+            while (node = walker.nextNode()) {
+                textNodes.push(node);
+            }
+
+            let foundNode = null;
+            let foundIndex = -1;
+
+            for (const textNode of textNodes) {
+                const text = textNode.textContent;
+                const index = text.indexOf(cleanText);
+                if (index !== -1) {
+                    foundNode = textNode;
+                    foundIndex = index;
+                    break;
+                }
+            }
+
+            if (!foundNode) {
+                const allDocText = docContent.textContent;
+                const cleanLower = cleanText.toLowerCase();
+                const docLower = allDocText.toLowerCase();
+                const docIndex = docLower.indexOf(cleanLower);
+                if (docIndex !== -1) {
+                    let charCount = 0;
+                    for (const textNode of textNodes) {
+                        const nodeText = textNode.textContent;
+                        if (charCount + nodeText.length > docIndex) {
+                            const localIndex = docIndex - charCount;
+                            if (nodeText.textContent.slice(localIndex, localIndex + cleanText.length).toLowerCase() === cleanLower) {
+                                foundNode = textNode;
+                                foundIndex = localIndex;
+                                break;
+                            }
+                        }
+                        charCount += nodeText.length;
+                    }
+                }
+            }
+
+            if (foundNode && foundIndex !== -1) {
+                const span = document.createElement('span');
+                span.className = 'doc-highlight';
+                span.textContent = cleanText;
+
+                const text = foundNode.textContent;
+                const before = document.createTextNode(text.substring(0, foundIndex));
+                const after = document.createTextNode(text.substring(foundIndex + cleanText.length));
+
+                const parent = foundNode.parentNode;
+                parent.insertBefore(before, foundNode);
+                parent.insertBefore(span, foundNode);
+                parent.insertBefore(after, foundNode);
+                parent.removeChild(foundNode);
+
+                span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                setTimeout(() => {
+                    if (span.parentNode) {
+                        const parent = span.parentNode;
+                        while (span.firstChild) parent.insertBefore(span.firstChild, span);
+                        parent.removeChild(span);
+                        parent.normalize();
+                    }
+                }, 3000);
+            } else {
+                console.log('未在文档中找到:', cleanText.substring(0, 30));
+            }
+        };
+
+        window.startEdit = function(el, event) {
+            if (!isEditMode) return;
+            event.stopPropagation();
+
+            const p = el.querySelector('p');
+            if (!p || el.querySelector('textarea')) return;
+
+            const originalText = p.textContent;
+            const textarea = document.createElement('textarea');
+            textarea.className = 'w-full min-h-[60px] text-sm text-slate-700 leading-relaxed bg-blue-50 border-2 border-blue-400 rounded-lg p-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-400';
+            textarea.value = originalText;
+            textarea.onclick = (e) => e.stopPropagation();
+
+            p.replaceWith(textarea);
+            textarea.focus();
+            textarea.select();
+
+            const saveEdit = () => {
+                const newText = textarea.value.trim();
+                if (newText && newText !== originalText) {
+                    const newP = document.createElement('p');
+                    newP.className = 'text-sm text-slate-700 leading-relaxed';
+                    newP.textContent = newText;
+                    textarea.replaceWith(newP);
+                } else {
+                    const newP = document.createElement('p');
+                    newP.className = 'text-sm text-slate-700 leading-relaxed';
+                    newP.textContent = originalText;
+                    textarea.replaceWith(newP);
+                }
+            };
+
+            textarea.addEventListener('blur', saveEdit);
+            textarea.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    textarea.value = originalText;
+                    textarea.blur();
+                }
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    textarea.blur();
+                }
+            });
+        };
+
+        window.completeAndSync = function() {
+            const cards = document.querySelectorAll('#reqList .req-card');
+            const checkboxes = document.querySelectorAll('#reqList .checkbox-area');
+            const uncheckedCards = [];
+
+            cards.forEach((card) => {
+                const checkbox = card.querySelector('.checkbox-area');
+                if (!checkbox.classList.contains('bg-blue-500')) {
+                    uncheckedCards.push(card);
+                }
+            });
+
+            if (uncheckedCards.length > 0) {
+                const uncheckedTexts = Array.from(uncheckedCards).map((card, i) =>
+                    `${i + 1}. ${card.querySelector('.text-content p').textContent.substring(0, 40)}...`
+                ).join('\n');
+                const proceed = confirm(`还有 ${uncheckedCards.length} 条需求未勾选确认：\n\n${uncheckedTexts}\n\n确定要跳过这些继续吗？`);
+                if (!proceed) return;
+            }
+
+            const btn = document.getElementById('syncBtn');
+            const progressBar = document.getElementById('progress-bar');
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> 同步中...';
+            btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            btn.classList.add('bg-blue-400');
+
+            setTimeout(() => {
+                btn.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4"></i> 已同步 ✓';
+                btn.classList.remove('bg-blue-400');
+                btn.classList.add('bg-emerald-500', 'hover:bg-emerald-600');
+                if (progressBar) {
+                    progressBar.style.width = '100%';
+                    progressBar.classList.remove('bg-blue-500');
+                    progressBar.classList.add('bg-emerald-500');
+                }
+
+                lucide.createIcons();
+
+                setTimeout(() => {
+                    const confirmNext = confirm('✅ 已同步至规划智能体！\n\n点击"确定"跳转到下一功能模块。\n点击"取消"继续编辑。');
+                    btn.disabled = false;
+                    if (confirmNext) {
+                        const allCards = document.querySelectorAll('#reqList .req-card');
+                        allCards.forEach((card) => {
+                            card.style.opacity = '0.5';
+                        });
+                        checkboxes.forEach((cb) => {
+                            cb.classList.remove('bg-blue-500', 'border-blue-500');
+                            cb.classList.add('border-slate-300');
+                            cb.querySelector('.check-icon').classList.add('hidden');
+                        });
+                        btn.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4"></i> 同步至规划智能体，进入下一功能';
+                        btn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600');
+                        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                        if (progressBar) {
+                            progressBar.style.width = '0%';
+                            progressBar.classList.remove('bg-emerald-500');
+                            progressBar.classList.add('bg-blue-500');
+                        }
+                        isAllSelected = false;
+                        const selectBtn = document.getElementById('selectAllBtn');
+                        selectBtn.classList.remove('bg-blue-100', 'border-blue-400', 'text-blue-700');
+                        updateProgress();
+                    } else {
+                        btn.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4"></i> 同步至规划智能体，进入下一功能';
+                        btn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600');
+                        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                    }
+                    lucide.createIcons();
+                }, 300);
+            }, 1500);
+        };
+
+        setTimeout(() => { if (typeof updateProgress !== 'undefined') updateProgress(); }, 500);
+    })();
+</script>
+
+<style>
+    .docx-pages {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        scroll-snap-type: y mandatory;
+    }
+    .word-page {
+        width: 100%;
+        max-width: 1480px;
+        min-height: 86vh;
+        margin: 0 auto;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+        border-radius: 8px;
+        padding: 56px;
+        scroll-snap-align: start;
+    }
+    .docx-rendered-content h1 { font-size: 1.8rem; font-weight: 800; color: #1e293b; margin-top: 2rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+    .docx-rendered-content h2 { font-size: 1.5rem; font-weight: 700; color: #334155; margin-top: 1.5rem; }
+    .docx-rendered-content h3 { font-size: 1.2rem; font-weight: 700; color: #475569; margin-top: 1.2rem; }
+    .docx-rendered-content p { font-size: 0.95rem; line-height: 1.7; color: #334155; margin-bottom: 1rem; }
+    .docx-rendered-content table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.85rem; }
+    .docx-rendered-content table td, .docx-rendered-content table th { border: 1px solid #cbd5e1; padding: 0.75rem; }
+    .docx-rendered-content table th { background-color: #f8fafc; font-weight: bold; }
+    .docx-rendered-content ol, .docx-rendered-content ul { padding-left: 2em; margin: 0.75rem 0; }
+    .docx-rendered-content ol { list-style-type: decimal; }
+    .docx-rendered-content ul { list-style-type: disc; }
+    .docx-rendered-content li { font-size: 0.95rem; line-height: 1.7; color: #334155; margin-bottom: 0.4rem; padding-left: 0.25em; }
+    .docx-rendered-content .docx-image-fallback { display: flex; align-items: center; justify-content: center; padding: 1.5rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 0.8rem; min-height: 80px; margin: 1rem 0; }
+    .edit-mode-active .text-content { cursor: text; }
+    .edit-mode-active .text-content:hover p { background-color: #dbeafe; border-radius: 4px; }
+    .doc-highlight {
+        background-color: #fef08a !important;
+        outline: 3px solid #f59e0b !important;
+        outline-offset: 2px;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+</style>

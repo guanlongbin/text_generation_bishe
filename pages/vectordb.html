@@ -1,0 +1,227 @@
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Cluster Visualization -->
+    <div class="lg:col-span-2 space-y-6">
+        <div class="glass-card rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h4 class="text-md font-bold text-slate-800 flex items-center">
+                    <i data-lucide="network" class="w-4 h-4 mr-2 text-blue-500"></i>
+                    基于 K-Means 的需求语义聚类
+                </h4>
+            </div>
+            
+            <!-- D3.js t-SNE Scatter Plot -->
+            <div class="relative h-[600px] bg-white rounded-xl border border-slate-100 overflow-hidden">
+                <div id="chart-container" class="w-full h-full"></div>
+                <script src="https://d3js.org/d3.v7.min.js" onload="drawChart()"></script>
+                <script>
+                    function drawChart() {
+                    const width = 800;
+                    const height = 580;
+                    const margin = {top: 40, right: 40, bottom: 50, left: 60};
+                    const plotWidth = width - margin.left - margin.right;
+                    const plotHeight = height - margin.top - margin.bottom;
+
+                    const svg = d3.select("#chart-container")
+                        .append("svg")
+                        .attr("width", "100%")
+                        .attr("height", "100%")
+                        .attr("viewBox", `0 0 ${width} ${height}`)
+                        .style("background", "white");
+
+                    const xScale = d3.scaleLinear()
+                        .domain([-25, 15])
+                        .range([0, plotWidth]);
+
+                    const yScale = d3.scaleLinear()
+                        .domain([-25, 25])
+                        .range([plotHeight, 0]);
+
+                    const g = svg.append("g")
+                        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                    const xTicks = [-20, -15, -10, -5, 0, 5, 10, 15];
+                    const yTicks = [-20, -10, 0, 10, 20];
+
+                    g.selectAll(".grid-line-v")
+                        .data(xTicks)
+                        .enter()
+                        .append("line")
+                        .attr("class", "grid-line")
+                        .attr("x1", d => xScale(d))
+                        .attr("x2", d => xScale(d))
+                        .attr("y1", 0)
+                        .attr("y2", plotHeight)
+                        .style("stroke", "#e0e0e0")
+                        .style("stroke-width", 0.5);
+
+                    g.selectAll(".grid-line-h")
+                        .data(yTicks)
+                        .enter()
+                        .append("line")
+                        .attr("class", "grid-line")
+                        .attr("x1", 0)
+                        .attr("x2", plotWidth)
+                        .attr("y1", d => yScale(d))
+                        .attr("y2", d => yScale(d))
+                        .style("stroke", "#e0e0e0")
+                        .style("stroke-width", 0.5);
+
+                    const clusters = [
+                        {name: "Cluster 0", cx: -8, cy: -5, n: 6, color: "#FF6347", r: 5},
+                        {name: "Cluster 1", cx: -5, cy: 15, n: 8, color: "#FF69B4", r: 5},
+                        {name: "Cluster 3", cx: -2, cy: -8, n: 6, color: "#1E90FF", r: 5},
+                        {name: "Cluster 4", cx: 2, cy: 8, n: 5, color: "#000080", r: 5},
+                        {name: "Cluster 5", cx: -2, cy: -9, n: 6, color: "#6495ED", r: 5},
+                        {name: "Cluster 6", cx: 12, cy: -22, n: 6, color: "#20B2AA", r: 5},
+                        {name: "Cluster 8", cx: -12, cy: 15, n: 6, color: "#FF8C00", r: 5},
+                        {name: "Cluster 11", cx: 2, cy: 11, n: 5, color: "#191970", r: 5},
+                        {name: "Cluster 12", cx: 2, cy: 2, n: 7, color: "#FF4500", r: 5},
+                        {name: "Cluster 14", cx: -2, cy: -1, n: 6, color: "#32CD32", r: 5},
+                        {name: "Cluster 15", cx: 10, cy: -12, n: 7, color: "#8A2BE2", r: 5},
+                        {name: "Cluster 22", cx: 8, cy: 0, n: 8, color: "#00FA9A", r: 5},
+                        {name: "Cluster 23", cx: 8, cy: 5, n: 6, color: "#FF1493", r: 5},
+                        {name: "Cluster 25", cx: -12, cy: -14, n: 7, color: "#7FFF00", r: 5},
+                        {name: "Cluster 28", cx: 3, cy: 20, n: 6, color: "#4682B4", r: 5},
+                        {name: "Cluster 35", cx: -6, cy: 9, n: 6, color: "#DC143C", r: 5},
+                        {name: "Cluster 37", cx: 11, cy: -5, n: 8, color: "#00FF7F", r: 5},
+                        {name: "Cluster 39", cx: -20, cy: 0, n: 6, color: "#B22222", r: 5},
+                        {name: "Cluster 44", cx: 0, cy: -11, n: 7, color: "#9370DB", r: 5},
+                        {name: "Cluster 49", cx: 2, cy: -20, n: 6, color: "#FF7F50", r: 5},
+                    ];
+
+                    const allPoints = [];
+                    clusters.forEach(cluster => {
+                        for (let i = 0; i < cluster.n; i++) {
+                            const offsetX = (Math.random() - 0.5) * 3;
+                            const offsetY = (Math.random() - 0.5) * 3;
+                            allPoints.push({
+                                x: cluster.cx + offsetX,
+                                y: cluster.cy + offsetY,
+                                color: cluster.color,
+                                cluster: cluster.name,
+                                r: cluster.r
+                            });
+                        }
+                    });
+
+                    g.selectAll(".cluster-point")
+                        .data(allPoints)
+                        .enter()
+                        .append("circle")
+                        .attr("class", "cluster-point")
+                        .attr("cx", d => xScale(d.x))
+                        .attr("cy", d => yScale(d.y))
+                        .attr("r", d => d.r)
+                        .attr("fill", d => d.color)
+                        .attr("opacity", 0.9)
+                        .style("stroke", "white")
+                        .style("stroke-width", 0.5);
+
+                    clusters.forEach(cluster => {
+                        const labelGroup = g.append("g");
+                        labelGroup.append("rect")
+                            .attr("x", xScale(cluster.cx) - 35)
+                            .attr("y", yScale(cluster.cy) - 10)
+                            .attr("width", 70)
+                            .attr("height", 20)
+                            .attr("fill", "white")
+                            .attr("fill-opacity", 0.7)
+                            .attr("rx", 3);
+                        labelGroup.append("text")
+                            .attr("x", xScale(cluster.cx))
+                            .attr("y", yScale(cluster.cy))
+                            .text(cluster.name)
+                            .style("font-size", "11px")
+                            .style("font-weight", "bold")
+                            .style("font-family", "Arial, sans-serif")
+                            .style("fill", "#333")
+                            .style("text-anchor", "middle")
+                            .style("dominant-baseline", "middle");
+                    });
+
+                    const xAxis = d3.axisBottom(xScale)
+                        .tickValues([-20, -15, -10, -5, 0, 5, 10, 15])
+                        .tickSize(5);
+
+                    g.append("g")
+                        .attr("transform", `translate(0,${plotHeight})`)
+                        .call(xAxis)
+                        .selectAll("text")
+                        .style("font-size", "12px")
+                        .style("font-family", "Arial, sans-serif");
+
+                    const yAxis = d3.axisLeft(yScale)
+                        .tickValues([-20, -10, 0, 10, 20])
+                        .tickSize(5);
+
+                    g.append("g")
+                        .call(yAxis)
+                        .selectAll("text")
+                        .style("font-size", "12px")
+                        .style("font-family", "Arial, sans-serif");
+
+                    g.append("rect")
+                        .attr("x", 0)
+                        .attr("y", 0)
+                        .attr("width", plotWidth)
+                        .attr("height", plotHeight)
+                        .attr("fill", "none")
+                        .attr("stroke", "black")
+                        .attr("stroke-width", 1);
+                    }
+                </script>
+                <div class="absolute bottom-2 right-2 text-[10px] text-slate-400">Sentence-BERT 降维映射 (t-SNE)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top-5 Representative Examples -->
+    <div class="lg:col-span-1 space-y-6">
+        <div class="glass-card rounded-2xl p-6 h-full flex flex-col">
+            <h4 class="text-md font-bold text-slate-800 mb-4 flex items-center">
+                <i data-lucide="list-checks" class="w-4 h-4 mr-2 text-orange-500"></i>
+                同簇需求参考 (Top-5)
+            </h4>
+            <div class="flex-1 overflow-y-auto space-y-3 pr-2">
+                <div class="w-full p-4 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-shadow">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-bold text-slate-400">需求 #1</span>
+                        <span class="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded font-medium">Cluster15</span>
+                    </div>
+                    <p class="text-sm text-slate-700 leading-relaxed">个人时点存款证明开立，需校验可用余额</p>
+                </div>
+                <div class="w-full p-4 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-shadow">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-bold text-slate-400">需求 #2</span>
+                        <span class="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded font-medium">Cluster15</span>
+                    </div>
+                    <p class="text-sm text-slate-700 leading-relaxed">个人时点存款证明开立，需校验证件有效期</p>
+                </div>
+                <div class="w-full p-4 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-shadow">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-bold text-slate-400">需求 #3</span>
+                        <span class="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded font-medium">Cluster15</span>
+                    </div>
+                    <p class="text-sm text-slate-700 leading-relaxed">个人时段存款证明开立，需校验账户状态</p>
+                </div>
+                <div class="w-full p-4 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-shadow">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-bold text-slate-400">需求 #4</span>
+                        <span class="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded font-medium">Cluster15</span>
+                    </div>
+                    <p class="text-sm text-slate-700 leading-relaxed">个人时段存款证明开立，需校验到期时间</p>
+                </div>
+                <div class="w-full p-4 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-shadow">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-bold text-slate-400">需求 #5</span>
+                        <span class="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded font-medium">Cluster15</span>
+                    </div>
+                    <p class="text-sm text-slate-700 leading-relaxed">个人时点存款证明开立，需校验客户签名</p>
+                </div>
+            </div>
+            <div class="mt-4 text-xs text-slate-400 text-center italic">
+                基于语义聚类检索的相似需求参考
+            </div>
+        </div>
+    </div>
+</div>

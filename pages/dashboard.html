@@ -1,0 +1,342 @@
+<!-- 主容器 -->
+<div class="max-w-full mx-auto px-4 py-4">
+    
+    <!-- 主内容区域：两列布局 -->
+    <div class="grid grid-cols-12 gap-4">
+        
+        <!-- 左侧（8列）：上传区域垂直排列 -->
+        <div class="col-span-12 lg:col-span-8 space-y-4">
+            
+            <!-- 上传解析资产 -->
+            <div class="glass-card p-4 rounded-xl">
+                <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center">
+                    <i data-lucide="upload-cloud" class="w-4 h-4 mr-2 text-blue-600"></i>
+                    上传解析资产
+                </h3>
+                
+                <div id="dropZone" class="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer mb-3 min-h-[130px] flex items-center justify-center">
+                    <div class="flex flex-col items-center">
+                        <i data-lucide="file-up" class="w-8 h-8 text-slate-300 mb-2"></i>
+                        <p class="text-slate-600 text-sm font-medium mb-1">拖拽文件或点击上传</p>
+                        <p class="text-xs text-slate-400">PDF, Word, Excel</p>
+                    </div>
+                    <input type="file" id="fileInput" class="hidden" multiple accept=".xlsx,.xls,.docx,.doc,.pdf">
+                </div>
+                
+                <div id="uploadedFiles" class="space-y-2 max-h-[140px] overflow-y-auto">
+                </div>
+            </div>
+            
+            <!-- 向量数据库 - 结构化文件上传 -->
+            <div class="glass-card p-4 rounded-xl">
+                <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center">
+                    <i data-lucide="database" class="w-4 h-4 mr-2 text-green-600"></i>
+                    向量数据库 - 结构化文件
+                </h3>
+                <p class="text-xs text-slate-500 mb-3">批量上传Excel、CSV等结构化文件</p>
+                
+                <div id="vectorDropZone" class="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-green-400 hover:bg-green-50/50 transition-colors cursor-pointer mb-3 min-h-[130px] flex items-center justify-center">
+                    <div class="flex flex-col items-center">
+                        <i data-lucide="file-spreadsheet" class="w-8 h-8 text-slate-300 mb-2"></i>
+                        <p class="text-slate-600 text-sm font-medium mb-1">拖拽文件或点击上传</p>
+                        <p class="text-xs text-slate-400">.xlsx, .xls, .csv</p>
+                    </div>
+                    <input type="file" id="vectorFileInput" class="hidden" multiple accept=".xlsx,.xls,.csv">
+                </div>
+                
+                <div id="vectorUploadedFiles" class="space-y-2 max-h-[140px] overflow-y-auto">
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右侧（4列）：向量数据库配置 -->
+        <div class="col-span-12 lg:col-span-4">
+            <div class="glass-card p-4 rounded-xl h-full flex flex-col justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center">
+                        <i data-lucide="settings" class="w-4 h-4 mr-2 text-purple-600"></i>
+                        向量数据库配置
+                    </h3>
+                    
+                    <div class="space-y-3">
+                        <!-- 向量库类型 -->
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">向量库类型</label>
+                            <select id="vectorDbType" class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="faiss" selected>FAISS</option>
+                                <option value="milvus">Milvus</option>
+                                <option value="pinecone">Pinecone</option>
+                                <option value="weaviate">Weaviate</option>
+                                <option value="chroma">Chroma</option>
+                                <option value="qdrant">Qdrant</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Embedding 模型 -->
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Embedding 模型</label>
+                            <select id="embeddingModel" class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="bge" selected>BGE (BAAI General Embedding)</option>
+                                <option value="text2vec">Text2Vec</option>
+                                <option value="m3e">M3E (Moka Massive Mixed Embedding)</option>
+                                <option value="simcse">SimCSE</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 向量维度 -->
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">向量维度</label>
+                            <input type="number" id="vectorDimension" value="1024" class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <!-- Top-K 检索数量 -->
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Top-K 检索数量</label>
+                            <input type="number" id="topK" value="5" min="1" max="20" class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <!-- 相似度阈值 -->
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">相似度阈值</label>
+                            <div class="flex items-center space-x-2">
+                                <input type="range" id="similarityThreshold" min="0" max="1" step="0.05" value="0.7" class="flex-1">
+                                <span id="thresholdValue" class="text-sm font-bold text-blue-600 w-10">0.70</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 开始生成任务按钮 -->
+                <div class="mt-4 pt-4 border-t border-slate-200">
+                    <button onclick="startProcess()" class="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center">
+                        <i data-lucide="play" class="w-4 h-4 mr-2"></i>
+                        开始生成任务
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 解析资产文件上传相关
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const uploadedFiles = document.getElementById('uploadedFiles');
+    let uploadedFileList = [];
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-blue-400', 'bg-blue-50');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('border-blue-400', 'bg-blue-50');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-blue-400', 'bg-blue-50');
+        const files = Array.from(e.dataTransfer.files);
+        handleFiles(files);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        handleFiles(files);
+    });
+
+    function handleFiles(files) {
+        files.forEach(file => {
+            if (!uploadedFileList.some(f => f.name === file.name)) {
+                uploadedFileList.push(file);
+                renderFileList();
+                updateFileCount();
+            }
+        });
+    }
+
+    function renderFileList() {
+        uploadedFiles.innerHTML = uploadedFileList.map((file, index) => `
+            <div class="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="${getFileIcon(file.name)}" class="w-4 h-4 text-slate-400"></i>
+                    <span class="text-xs text-slate-700 truncate max-w-[120px]">${file.name}</span>
+                </div>
+                <button onclick="removeFile(${index})" class="text-slate-400 hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="w-3 h-3"></i>
+                </button>
+            </div>
+        `).join('');
+        
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    function removeFile(index) {
+        uploadedFileList.splice(index, 1);
+        renderFileList();
+        updateFileCount();
+    }
+
+    function getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const icons = {
+            'xlsx': 'file-spreadsheet',
+            'xls': 'file-spreadsheet',
+            'csv': 'file-spreadsheet',
+            'docx': 'file-text',
+            'doc': 'file-text',
+            'pdf': 'file'
+        };
+        return icons[ext] || 'file';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function updateFileCount() {
+        document.getElementById('fileCount').textContent = uploadedFileList.length;
+    }
+
+    // 向量数据库结构化文件上传相关
+    const vectorDropZone = document.getElementById('vectorDropZone');
+    const vectorFileInput = document.getElementById('vectorFileInput');
+    const vectorUploadedFiles = document.getElementById('vectorUploadedFiles');
+    let vectorFileList = [];
+
+    vectorDropZone.addEventListener('click', () => vectorFileInput.click());
+
+    vectorDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        vectorDropZone.classList.add('border-green-400', 'bg-green-50');
+    });
+
+    vectorDropZone.addEventListener('dragleave', () => {
+        vectorDropZone.classList.remove('border-green-400', 'bg-green-50');
+    });
+
+    vectorDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        vectorDropZone.classList.remove('border-green-400', 'bg-green-50');
+        const files = Array.from(e.dataTransfer.files);
+        handleVectorFiles(files);
+    });
+
+    vectorFileInput.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        handleVectorFiles(files);
+    });
+
+    function handleVectorFiles(files) {
+        files.forEach(file => {
+            if (!vectorFileList.some(f => f.name === file.name)) {
+                vectorFileList.push(file);
+                renderVectorFileList();
+                updateVectorFileCount();
+            }
+        });
+    }
+
+    function renderVectorFileList() {
+        vectorUploadedFiles.innerHTML = vectorFileList.map((file, index) => `
+            <div class="flex items-center justify-between p-2 bg-green-50 rounded-lg">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4 text-green-500"></i>
+                    <span class="text-xs text-slate-700 truncate max-w-[120px]">${file.name}</span>
+                </div>
+                <button onclick="removeVectorFile(${index})" class="text-slate-400 hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="w-3 h-3"></i>
+                </button>
+            </div>
+        `).join('');
+        
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    function removeVectorFile(index) {
+        vectorFileList.splice(index, 1);
+        renderVectorFileList();
+        updateVectorFileCount();
+    }
+
+    function updateVectorFileCount() {
+        document.getElementById('vectorFileCount').textContent = vectorFileList.length;
+    }
+
+    // 相似度阈值滑块
+    const thresholdSlider = document.getElementById('similarityThreshold');
+    const thresholdValue = document.getElementById('thresholdValue');
+    
+    thresholdSlider.addEventListener('input', (e) => {
+        thresholdValue.textContent = parseFloat(e.target.value).toFixed(2);
+    });
+
+    // 测试连接
+    function testConnection() {
+        alert('测试连接功能\n\n向量库: ' + document.getElementById('vectorDbType').value.toUpperCase() + 
+              '\nEmbedding模型: ' + document.getElementById('embeddingModel').value.toUpperCase() + 
+              '\n向量维度: ' + document.getElementById('vectorDimension').value);
+    }
+
+    // 保存配置
+    function saveConfiguration() {
+        const config = {
+            parseFiles: uploadedFileList.map(f => ({ name: f.name, size: f.size })),
+            vectorFiles: vectorFileList.map(f => ({ name: f.name, size: f.size })),
+            vectorDb: {
+                type: document.getElementById('vectorDbType').value,
+                embeddingModel: document.getElementById('embeddingModel').value,
+                dimension: document.getElementById('vectorDimension').value,
+                topK: document.getElementById('topK').value,
+                threshold: document.getElementById('similarityThreshold').value
+            }
+        };
+        
+        console.log('保存配置:', config);
+        alert('配置已保存！\n\n解析资产文件: ' + config.parseFiles.length + ' 个\n向量数据库文件: ' + config.vectorFiles.length + ' 个\n\n向量库: ' + config.vectorDb.type + '\nEmbedding模型: ' + config.vectorDb.embeddingModel + '\n向量维度: ' + config.vectorDb.dimension);
+    }
+
+    // 开始解析
+    function startProcess() {
+        if (uploadedFileList.length === 0 && vectorFileList.length === 0) {
+            alert('请先上传至少一个文件！');
+            return;
+        }
+        
+        const config = {
+            parseFiles: uploadedFileList.map(f => ({ name: f.name, size: f.size })),
+            vectorFiles: vectorFileList.map(f => ({ name: f.name, size: f.size })),
+            vectorDb: {
+                type: document.getElementById('vectorDbType').value,
+                embeddingModel: document.getElementById('embeddingModel').value,
+                dimension: document.getElementById('vectorDimension').value,
+                topK: document.getElementById('topK').value,
+                threshold: document.getElementById('similarityThreshold').value
+            }
+        };
+        
+        console.log('开始解析任务:', config);
+        
+        if (confirm('确认开始解析任务？\n\n解析资产文件: ' + config.parseFiles.length + ' 个\n向量数据库文件: ' + config.vectorFiles.length + ' 个\n\n向量库: ' + config.vectorDb.type + '\nEmbedding模型: ' + config.vectorDb.embeddingModel)) {
+            alert('解析任务已启动！\n请查看控制台获取详细信息。');
+        }
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+        updateFileCount();
+        updateVectorFileCount();
+    });
+</script>

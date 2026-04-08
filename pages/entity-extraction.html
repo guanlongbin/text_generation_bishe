@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <title>文档实体抽取 - EvoGenAgents</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .code-font { font-family: 'JetBrains+Mono', monospace; }
+        .prompt-editor {
+            font-family: 'JetBrains+Mono', monospace;
+            line-height: 1.6;
+        }
+        .entity-card {
+            transition: all 0.2s ease;
+        }
+        .entity-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .triple-tag {
+            font-size: 9px;
+            padding: 1px 6px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen overflow-hidden">
+    <div class="flex h-full">
+        <!-- Left: Prompt Editor -->
+        <div class="w-[40%] flex flex-col border-r border-slate-200 bg-white">
+            <div class="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <div class="bg-blue-600 p-1 rounded">
+                        <i data-lucide="cpu" class="w-3.5 h-3.5 text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-800">实体抽取 Prompt</h3>
+                        <p class="text-xs text-slate-400">LLM 实体识别指令</p>
+                    </div>
+                </div>
+                <button onclick="savePrompt()" class="px-2 py-1 bg-blue-600 text-white text-[9px] font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1">
+                    <i data-lucide="save" class="w-2.5 h-2.5"></i>
+                    保存
+                </button>
+            </div>
+            <div class="flex-1 p-3 overflow-y-auto">
+                <div class="bg-slate-50 rounded-xl border border-slate-200 p-3 h-full">
+                    <textarea id="promptEditor" class="prompt-editor w-full h-full min-h-[400px] bg-transparent border-none outline-none resize-none text-sm text-slate-700 leading-relaxed" placeholder="输入实体抽取 Prompt...">你是一个专业的实体识别专家。请从以下文档中识别关键名词，并进行分类和规则提取。
+
+## 文档内容
+{context}
+
+## 任务说明
+1. 从文档中识别所有涉及的关键名词（实体）
+2. 对每个名词进行分类（属于什么类别）
+3. 提取名词相关的业务规则
+
+## 通用实体类别（根据文档内容自适应分类）
+
+### 一、标识类
+- 名称、编号、代码、标识符等用于唯一识别的名词
+
+### 二、主体类
+- 人物、机构、组织、账户、客户、代理人等参与方
+
+### 三、对象类
+- 产品、服务、账户、资产、物品等被操作或管理的对象
+
+### 四、动作类
+- 业务、行为、操作、交易等动词性名词
+
+### 五、属性类
+- 金额、数量、利率、比例、规格等描述性名词
+
+### 六、时间类
+- 日期、期限、周期、时效、阶段等时间相关名词
+
+### 七、状态类
+- 状态、类型、等级、阶段等描述性分类
+
+### 八、规则类
+- 条件、约束、前提、方式、方法、流程等
+
+## Few-Shot 示例
+
+**示例 - 银行文档：**
+输入：个人存款账户支持本外币一体化管理，整存整取需约定存期，到期一次支取本息
+输出：
+```json
+{
+  "个人存款账户": {
+    "类别": "主体类-账户",
+    "属性": ["本外币一体化"],
+    "规则": "支持本外币一体化管理"
+  },
+  "整存整取": {
+    "类别": "对象类-产品",
+    "属性": ["约定存期", "到期一次支取本息"],
+    "规则": "需约定存期，到期一次性支取"
+  }
+}
+```
+
+
+## 抽取规则
+- 识别文档中的关键名词，不遗漏重要信息
+- 根据文档内容自适应判断名词属于哪个类别
+- 提取名词的所有相关属性和规则
+- 属性用简洁的关键词表示
+- 规则用完整的句子描述
+- 未找到的字段填空或标记为"-"
+
+## 输出格式
+请按以下JSON格式输出：
+{
+  "名词": {
+    "类别": "所属类别",
+    "属性": ["属性1", "属性2"],
+    "规则": "完整规则描述"
+  }
+}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Entity Dictionary -->
+        <div class="w-[60%] flex flex-col bg-white">
+            <div class="px-5 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-purple-50 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-purple-600 p-1.5 rounded">
+                        <i data-lucide="book-open" class="w-4 h-4 text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-800">实体字典（三元组）</h3>
+                        <p class="text-[10px] text-slate-400">基于文档自动抽取 <span class="text-purple-600 font-bold" id="entity-count">33</span> 个实体</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="exportDict()" class="px-2 py-1 bg-white border border-slate-300 text-slate-600 text-[10px] font-medium rounded-lg hover:bg-purple-50 hover:border-purple-400 transition-colors flex items-center gap-1">
+                        <i data-lucide="download" class="w-3 h-3"></i>
+                        导出
+                    </button>
+                    <button onclick="addEntity()" class="px-2 py-1 bg-white border border-slate-300 text-slate-600 text-[10px] font-medium rounded-lg hover:bg-green-50 hover:border-green-400 transition-colors flex items-center gap-1">
+                        <i data-lucide="plus" class="w-3 h-3"></i>
+                        新增
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4" id="entityList">
+                <div class="grid grid-cols-3 gap-4">
+                    <!-- 个人账户业务 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">个人账户业务</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">个人存款开户, 一本通销折, 个人存款销户, 卡内转开定期, 个人存单多笔销户</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">个人账户业务涵盖客户在我行的各类个人存款产品开户及销户操作</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 对公活期账号 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">对公活期账号</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">启用, 指定启用天数</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">对公活期账户支持参数化配置启用方式，包括自动启用和手工启用</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 对公定期账号 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">对公定期账号</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">现金存款, 转账交易一次性存入相关资金</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">对公定期账户仅支持一次性存入，不支持分期存入</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 单位定期账户 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">单位定期账户</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">打印单位存款证实书, 单位存款证实书转为存单</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">单位定期账户可选择开立证实书或存单，两种凭证可相互转换</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 定期账户 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">定期账户</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">手工转存, 指定本金收入账号, 利息选择入指定结算账户</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">定期账户支持本金和利息的灵活支取配置</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 单位定期与单位活期账户 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">单位定期与单位活期账户</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">单位存款销户交易进行销户</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">对公定期和活期账户统一使用销户交易进行销户处理</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 个人活期存款 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">个人活期存款</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">支持本外币, 可办理转账结算</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">个人活期存款支持本外币一体化管理，可进行转账结算</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 个人定期储蓄存款 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">个人定期储蓄存款</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">整存整取, 零存整取, 教育储蓄, 定活两便, 通知存款</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">个人定期储蓄包含多种存款类型，满足客户不同储蓄需求</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 整存整取定期储蓄存款 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">整存整取定期储蓄存款</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">约定存期, 整笔存入, 到期一次支取本息</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">整存整取是最基础的定期存款产品，约定存期后整笔存入，到期一次性支取</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 零存整取定期储蓄存款 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">零存整取定期储蓄存款</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">每月存入约定金额, 到期一次性支取本息</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">零存整取需按月定额存入，培养储蓄习惯</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 教育储蓄存款 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">教育储蓄存款</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">存期规定, 账户限额, 利率优惠, 对象固定</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">教育储蓄享受利率优惠，但仅限特定年龄段学生，且有账户最高限额</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 定活两便存款 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">定活两便存款</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">整笔存入, 不约定存期, 按规定计息</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">定活两便不约定存期，支取时按实际存期对应利率计息</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 个人通知存款 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">个人通知存款</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">整笔存入, 不约定存期, 一次或分次支取, 提前通知金融机构, 约定取款日期和金额, 一天通知存款, 七天通知存款, 系统自动生成客户预约记录</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">通知存款需提前向银行预约支取，分为一天和七天两种类型</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 日利率 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">日利率</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">年利率/360, 360/365进行换算</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">日利率可通过年利率除以360或365天进行换算</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 代理人 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">代理人</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">代理人证件类型, 代理人证件号码, 代理人名称, 代理人电话, 代理人国籍</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">代理人办理业务需提供完整证件信息，包括证件类型、号码、姓名、电话及国籍</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 资金来源 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">资金来源</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">现金, 转账, 待销账</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">资金来源支持现金、转账及待销账三种方式</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 资金去向 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">资金去向</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">现金, 转账, 待销账</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">资金去向支持现金、转账及待销账三种方式</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 利率浮动方式 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">利率浮动方式</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">客户, 产品, 渠道, 机构, 账户</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">利率浮动可按客户资质、产品类型、渠道、机构或账户维度进行差异化定价</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 推荐人 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">推荐人</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">推荐人姓名, 推荐人工号</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">推荐人信息用于业务推荐关系绑定，需记录姓名和工号</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 存款种类 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">存款种类</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">普通活期, 整存整取, 定活两便, 零存整取, 通知存款, 教育储蓄</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">存款种类涵盖我行所有个人存款产品类型</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 可用余额 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">可用余额</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">账户余额-止付金额-冻结金额</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">可用余额为账户余额扣除止付和冻结金额后的实际可支配金额</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 约定转存 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">约定转存</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">将活期转为整存整取, 通知存款, 定活两便, 零存整取</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">活期账户可约定自动转存为定期类产品</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 开户支持 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-2">开户支持</div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs"><span class="text-slate-500">取值：</span><span class="text-slate-700">多币种, 多介质</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">开户时支持选择多币种账户及多种介质类型</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 对公客户预约开户 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">对公客户预约开户</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">定制账号</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">对公客户可提前预约开户并定制账号</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 账号 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">账号</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">含字母标识, NRA账户, 跨境人民币账户标识</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">账号中包含特殊标识符以区分NRA账户和跨境人民币账户</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 跨机构开户 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">跨机构开户</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">指定开户机构</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">客户可跨机构选择开户网点</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 账户状态 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">账户状态</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">久悬, 转营业外</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">长期不动户将转为久悬状态，最终转入营业外收入</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 定期和通知存款销户转开功能 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">定期和通知存款销户转开功能</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">-</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">定期和通知存款销户时可选择转开其他存款产品</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 单位定期客户账号 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">单位定期客户账号</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">开立多个子账户</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">单位定期客户账号下可开立多个子账户进行分账管理</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 结计账户 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">结计账户</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">结息, 支取本息, 账户销户, 收回凭证</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">定期账户到期处理包括结息、支取本息、销户及凭证回收</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 挂失销户 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">挂失销户</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">-</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">凭证挂失后可办理销户业务</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 对公活期结算账户 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">对公活期结算账户</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">账户生效日前只收不付, 账户生效后自动控制启用时间, 参数化配置进行手工启用</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">对公活期结算账户支持账户生效日前只收不付及多种启用方式</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 个人、对公开销户流程 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">个人、对公开销户流程</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">整合, 一个入口支持所有存款产品</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">整合个人和对公存款产品销户流程，统一入口办理</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 定活两便存款 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">定活两便存款</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">整笔存入, 不约定存期, 按规定计息</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">定活两便存款不约定存期，支取时按实际存期对应利率档次计息</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 个人通知存款 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">个人通知存款</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">整笔存入, 不约定存期, 一次或分次支取, 提前通知金融机构, 约定取款日期和金额, 一天通知存款, 七天通知存款, 系统自动生成客户预约记录</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">个人通知存款需提前通知银行，分为一天和七天两种档次，系统自动生成预约记录</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 日利率 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">日利率</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">年利率/360, 360/365进行换算</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">日利率通过年利率除以360天计算，或按360/365进行换算</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 代理人 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">代理人</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">代理人证件类型, 代理人证件号码, 代理人名称, 代理人电话, 代理人国籍</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">代理人办理业务需提供完整的身份信息和联系方式</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 资金来源 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">资金来源</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">现金, 转账, 待销账</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">资金来源支持现金、转账和待销账三种方式</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 资金去向 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">资金去向</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">现金, 转账, 待销账</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">资金去向支持现金、转账和待销账三种方式</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 利率浮动方式 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">利率浮动方式</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">客户, 产品, 渠道, 机构, 账户</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">利率浮动可按客户类型、产品类型、渠道类型、机构类型或账户类型进行差异化定价</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 推荐人 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">推荐人</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">推荐人姓名, 推荐人工号</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">推荐人信息用于客户引荐关系记录和业绩统计</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 存款种类 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">存款种类</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">普通活期, 整存整取, 定活两便, 零存整取, 通知存款, 教育储蓄</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">存款种类涵盖银行提供的各类储蓄存款产品</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 可用余额 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">可用余额</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">账户余额-止付金额-冻结金额</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">可用余额等于账户余额减去止付金额和冻结金额</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 约定转存 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">约定转存</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">将活期转为整存整取, 通知存款, 定活两便, 零存整取</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">约定转存支持活期存款自动转为多种定期存款产品</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 开户支持 -->
+                    <div class="entity-card bg-white border border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:shadow-md">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">实体</span>
+                            </div>
+                            <button onclick="editEntity(this)" class="text-slate-400 hover:text-blue-600 p-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div class="text-base font-bold text-slate-800 mb-3">开户支持</div>
+                        <div class="space-y-2">
+                            <div class="text-sm"><span class="text-slate-500">取值：</span><span class="text-slate-700">多币种, 多介质</span></div>
+                            <div class="text-sm"><span class="text-slate-500">规则：</span><span class="text-slate-600">开户时支持选择多币种账户和多介质类型</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+        });
+
+        function savePrompt() {
+            const prompt = document.getElementById('promptEditor').value;
+            localStorage.setItem('entityPrompt', prompt);
+            alert('Prompt 已保存！');
+        }
+
+        function exportDict() {
+            alert('导出功能开发中...');
+        }
+
+        function addEntity() {
+            alert('新增实体功能开发中...');
+        }
+
+        function editEntity(btn) {
+            alert('编辑实体功能开发中...');
+        }
+    </script>
+</body>
+</html>

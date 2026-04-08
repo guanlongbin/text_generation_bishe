@@ -1,0 +1,409 @@
+<div class="h-full flex flex-col m-0 p-0">
+    <div class="px-2 py-2 border-b border-slate-100 flex justify-between items-center flex-shrink-0">
+        <div class="flex items-center space-x-4">
+            <h4 class="text-md font-bold text-slate-800">个人存款账户账户开户交易生成测试案例列表</h4>
+            <span id="totalCount" class="text-xs text-slate-400">-</span>
+        </div>
+        <div class="flex items-center space-x-3 flex-wrap gap-2">
+            <span class="text-xs text-slate-400">置信度 &gt;=</span>
+            <input type="range" id="confidenceFilter" min="0" max="10" value="6" step="0.1" class="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer" onchange="applyFilters()">
+            <span id="filterValue" class="text-xs font-bold text-blue-600 w-12">6.0</span>
+            <select id="typeFilter" onchange="applyFilters()" class="text-xs px-2 py-1 border border-slate-200 rounded focus:outline-none">
+                <option value="">所有类型</option>
+            </select>
+            <select id="statusFilter" onchange="applyFilters()" class="text-xs px-2 py-1 border border-slate-200 rounded focus:outline-none">
+                <option value="">所有状态</option>
+                <option value="通过校验">通过校验</option>
+                <option value="待人工复核">待人工复核</option>
+                <option value="校验失败">校验失败</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="搜索..." class="text-xs px-3 py-1 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" oninput="applyFilters()">
+        </div>
+    </div>
+    <div class="flex-1 overflow-auto">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-100 text-xs font-bold text-slate-600 uppercase tracking-wider sticky top-0 z-10">
+                <tr>
+                    <th class="py-1 px-2 border-r border-slate-300">序号</th>
+                    <th class="py-1 px-2 border-r border-slate-300">需求条目</th>
+                    <th class="py-1 px-2 border-r border-slate-300">类型</th>
+                    <th class="py-1 px-2 border-r border-slate-300">功能要素</th>
+                    <th class="py-1 px-2 border-r border-slate-300">测试要点</th>
+                    <th class="py-1 px-2 border-r border-slate-300">召回编号</th>
+                    <th class="py-1 px-2 border-r border-slate-300">本条生成依据</th>
+                    <th class="py-1 px-2 border-r border-slate-300">相似度得分</th>
+                    <th class="py-1 px-2 border-r border-slate-300">召回需求条目</th>
+                    <th class="py-1 px-2 border-r border-slate-300">置信度</th>
+                    <th class="py-1 px-2">状态</th>
+                </tr>
+            </thead>
+            <tbody id="testCaseBody" class="text-xs">
+            </tbody>
+        </table>
+    </div>
+    <div class="px-2 py-2 border-t border-slate-100 flex items-center justify-between flex-shrink-0">
+        <div class="text-xs text-slate-500">
+            显示 <span id="showingFrom">-</span>-<span id="showingTo">-</span> 条，共 <span id="totalFiltered">-</span> 条
+        </div>
+        <div class="flex items-center space-x-2">
+            <button id="prevBtn" onclick="prevPage()" class="px-3 py-1 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed">上一页</button>
+            <span id="pageInfo" class="text-xs text-slate-600">1 / 1</span>
+            <button id="nextBtn" onclick="nextPage()" class="px-3 py-1 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed">下一页</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let allData = [];
+    let filteredData = [];
+    let currentPage = 1;
+    const pageSize = 30;
+
+    async function loadTestData() {
+        try {
+            const response = await fetch('test_data.json');
+            allData = await response.json();
+            filteredData = [...allData];
+            document.getElementById('totalCount').textContent = `共 ${allData.length} 条`;
+            populateFilters();
+            applyFilters();
+        } catch (error) {
+            console.error('Failed to load test data:', error);
+        }
+    }
+
+    function populateFilters() {
+        const types = [...new Set(allData.map(d => d.type).filter(Boolean))];
+        const typeSelect = document.getElementById('typeFilter');
+        types.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            typeSelect.appendChild(opt);
+        });
+    }
+
+    function getConfidenceColor(conf) {
+        if (conf >= 7.5) return 'green';
+        if (conf >= 6) return 'orange';
+        return 'red';
+    }
+
+    function getStatusBadge(status) {
+        const badges = {
+            '通过校验': 'bg-green-50 text-green-600',
+            '待人工复核': 'bg-orange-100 text-orange-700',
+            '校验失败': 'bg-red-100 text-red-700'
+        };
+        return badges[status] || 'bg-slate-100 text-slate-600';
+    }
+
+    function applyFilters() {
+        const minConf = parseFloat(document.getElementById('confidenceFilter').value);
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const typeVal = document.getElementById('typeFilter').value;
+        const statusVal = document.getElementById('statusFilter').value;
+        document.getElementById('filterValue').textContent = minConf.toFixed(1);
+
+        filteredData = allData.filter(item => {
+            const matchConf = item.confidence >= minConf;
+            const matchSearch = !search || 
+                item.id.toLowerCase().includes(search) ||
+                item.point.toLowerCase().includes(search) ||
+                item.transaction.toLowerCase().includes(search) ||
+                item.module.toLowerCase().includes(search) ||
+                item.requirement.toLowerCase().includes(search);
+            const matchType = !typeVal || item.type === typeVal;
+            const matchStatus = !statusVal || item.status === statusVal;
+            return matchConf && matchSearch && matchType && matchStatus;
+        });
+
+        currentPage = 1;
+        renderTable();
+        updatePagination();
+    }
+
+    function renderTable() {
+        const start = (currentPage - 1) * pageSize;
+        const end = start + pageSize;
+        const pageData = filteredData.slice(start, end);
+
+        const tbody = document.getElementById('testCaseBody');
+        let html = '';
+        let lastRequirement = '';
+        let requirementCount = 0;
+        let requirementIndex = 0;
+
+        pageData.forEach((item, idx) => {
+            const isNewRequirement = item.requirement !== lastRequirement;
+            if (isNewRequirement) {
+                requirementCount = pageData.filter(d => d.requirement === item.requirement).length;
+                lastRequirement = item.requirement;
+                requirementIndex++;
+            }
+
+            const seqNum = item.id.split('_').pop();
+            const bgClass = requirementIndex % 2 === 1 ? 'bg-blue-50' : 'bg-green-50';
+            
+            html += `<tr class="${bgClass} hover:bg-blue-100 cursor-pointer transition-colors border-b border-slate-200" onclick="showDetail('${encodeURIComponent(item.id)}')">`;
+
+            html += `<td class="px-2 py-1 text-slate-400 text-[10px] align-middle border-r border-slate-200">${seqNum}</td>`;
+
+            if (isNewRequirement) {
+                html += `<td class="px-2 py-1 text-slate-600 text-xs align-middle max-w-[200px] whitespace-normal border-r border-slate-200" rowspan="${requirementCount}">${item.requirement}</td>`;
+                html += `<td class="px-1 py-1 align-middle border-r border-slate-200" rowspan="${requirementCount}"><span class="px-1 py-0.5 bg-blue-100 text-blue-700 font-bold rounded whitespace-nowrap text-[10px]">${item.type}</span></td>`;
+                html += `<td class="px-2 py-1 text-slate-600 max-w-[80px] whitespace-normal align-middle border-r border-slate-200" rowspan="${requirementCount}">${item.element}</td>`;
+            }
+
+            html += `<td class="px-2 py-1 text-slate-600 max-w-[400px] whitespace-normal align-middle border-r border-slate-200">${item.point}</td>`;
+            
+            if (isNewRequirement) {
+                html += `<td class="px-2 py-1 text-slate-500 max-w-[50px] whitespace-normal align-middle border-r border-slate-200" rowspan="${requirementCount}">${item.original_id}</td>`;
+                html += `<td class="px-2 py-1 text-slate-500 max-w-[40px] whitespace-normal align-middle border-r border-slate-200" rowspan="${requirementCount}">${item.data_source}</td>`;
+                html += `<td class="px-2 py-1 text-slate-500 max-w-[40px] whitespace-normal align-middle border-r border-slate-200" rowspan="${requirementCount}">${item.data_source === 'AI生成' ? '' : (item.score % 1).toFixed(4)}</td>`;
+                html += `<td class="px-2 py-1 text-slate-400 max-w-[200px] whitespace-normal align-middle border-r border-slate-200" rowspan="${requirementCount}">${item.old_requirement}</td>`;
+            }
+            
+            html += `<td class="px-2 py-1 align-middle border-r border-slate-200">
+                <div class="flex items-center">
+                    <span class="font-bold text-${getConfidenceColor(item.confidence)}-600 mr-1">${item.confidence.toFixed(1)}</span>
+                    <div class="w-10 h-1 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-${getConfidenceColor(item.confidence)}-500" style="width: ${item.confidence * 10}%"></div>
+                    </div>
+                </div>
+            </td>
+            <td class="px-2 py-1 align-middle"><span class="px-2 py-0.5 ${getStatusBadge(item.status)} font-bold rounded whitespace-nowrap">${item.status}</span></td>
+            </tr>`;
+        });
+
+        tbody.innerHTML = html;
+
+        document.getElementById('showingFrom').textContent = filteredData.length > 0 ? start + 1 : 0;
+        document.getElementById('showingTo').textContent = Math.min(end, filteredData.length);
+        document.getElementById('totalFiltered').textContent = filteredData.length;
+    }
+
+    function updatePagination() {
+        const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
+        document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+        document.getElementById('prevBtn').disabled = currentPage <= 1;
+        document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    }
+
+    function prevPage() {
+        if (currentPage > 1) {
+            currentPage--;
+            renderTable();
+            updatePagination();
+        }
+    }
+
+    function nextPage() {
+        const totalPages = Math.ceil(filteredData.length / pageSize);
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderTable();
+            updatePagination();
+        }
+    }
+
+    let currentDetailId = null;
+
+    function showDetail(id) {
+        document.getElementById('detailTitle').textContent = '5.1.1 活期支取额度检查';
+        document.getElementById('detailStatus').textContent = '待人工复核';
+        document.getElementById('detailStatus').className = 'px-3 py-1.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700';
+        document.getElementById('detailId').textContent = '活期支取_001';
+        
+        document.getElementById('detailInfo').innerHTML = `
+            <div class="space-y-4">
+                <div>
+                    <p class="text-xs text-slate-500 mb-1">需求条目</p>
+                    <p class="text-sm text-slate-700">5.1.1 业务规则: 活期支取的交易金额需要进行额度检查。如果超过限额，根据限额类型处理方式进行控制。</p>
+                </div>
+                <div class="pt-2 border-t border-slate-200">
+                    <p class="text-xs text-slate-500 mb-2">关联实体和规则</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">限额类型</span>
+                            </div>
+                            <div class="text-xs mb-1"><span class="text-slate-500">取值：</span><span class="text-slate-700">单笔限额, 日累计限额, 月累计限额</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">根据不同限额类型进行额度校验</span></div>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">处理方式</span>
+                            </div>
+                            <div class="text-xs mb-1"><span class="text-slate-500">取值：</span><span class="text-slate-700">拒绝交易, 部分支取, 需人工授权</span></div>
+                            <div class="text-xs"><span class="text-slate-500">规则：</span><span class="text-slate-600">超过限额后按预设方式处理</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pt-2 border-t border-slate-200">
+                    <p class="text-xs text-slate-500 mb-2">RAG 检索内容（历史生成测试点）</p>
+                    <div class="space-y-3">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">需求</span>
+                                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded">92.1%</span>
+                            </div>
+                            <p class="text-xs text-slate-600 mb-3">活期支取时需要验证账户的支取方式，验证通过后，方可继续交易</p>
+                            <div class="space-y-2">
+                                <div class="bg-white border border-blue-200 rounded p-2">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-slate-600 flex-1">客户在柜面办理活期支取，输入正确密码，选择支取方式为"现金"，系统验证通过，交易成功完成</p>
+                                        <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded ml-2">成功</span>
+                                    </div>
+                                </div>
+                                <div class="bg-white border border-blue-200 rounded p-2">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-slate-600 flex-1">客户在柜面办理活期支取，输入正确密码，选择支取方式为"转账至本行账户"，系统验证通过，交易成功完成</p>
+                                        <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded ml-2">成功</span>
+                                    </div>
+                                </div>
+                                <div class="bg-white border border-blue-200 rounded p-2">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-slate-600 flex-1">客户在柜面办理活期支取，输入正确密码，选择支取方式为"转账至他行账户"，系统验证通过，交易成功完成</p>
+                                        <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded ml-2">成功</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded">需求</span>
+                                <span class="px-2 py-0.5 bg-slate-200 text-slate-600 text-[10px] font-bold rounded">85.6%</span>
+                            </div>
+                            <p class="text-xs text-slate-600 mb-3">个人活期存款账户单笔支取金额不得超过账户可用余额</p>
+                            <div class="space-y-2">
+                                <div class="bg-white border border-slate-200 rounded p-2">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-slate-600 flex-1">客户在柜面办理活期支取，账户余额为30000元，输入支取金额20000元，系统提示"交易成功"，完成支取</p>
+                                        <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded ml-2">成功</span>
+                                    </div>
+                                </div>
+                                <div class="bg-white border border-red-200 rounded p-2">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-slate-600 flex-1">客户在柜面办理活期支取，账户余额为30000元，输入支取金额50000元，系统提示"余额不足，交易失败"</p>
+                                        <span class="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded ml-2">失败</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded">需求</span>
+                                <span class="px-2 py-0.5 bg-slate-200 text-slate-600 text-[10px] font-bold rounded">78.3%</span>
+                            </div>
+                            <p class="text-xs text-slate-600 mb-3">大额交易需进行远程授权复核，超过50万需主管审批</p>
+                            <div class="space-y-2">
+                                <div class="bg-white border border-slate-200 rounded p-2">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-slate-600 flex-1">客户在柜面办理活期支取，账户余额充足，输入支取金额30万元，系统提示"交易成功"，无需授权</p>
+                                        <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded ml-2">成功</span>
+                                    </div>
+                                </div>
+                                <div class="bg-white border border-amber-200 rounded p-2">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-slate-600 flex-1">客户在柜面办理活期支取，输入支取金额60万元，系统提示"需远程授权复核"，柜员点击确认后，因未授权交易失败</p>
+                                        <span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded ml-2">待复核</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pt-2 border-t border-slate-200">
+                    <p class="text-xs text-slate-500 mb-1">生成结果</p>
+                    <p class="text-sm text-orange-600">验证：活期支取交易金额为负数，交易失败</p>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    function closeDetail() {
+        document.getElementById('detailModal').classList.add('hidden');
+        currentDetailId = null;
+    }
+
+    function submitReview(type) {
+        alert(type === 'approve' ? '已通过' : '已标记失败');
+        closeDetail();
+        window.location.href = 'dashboard.html';
+    }
+
+    function copyToFeedback(text) {
+        document.querySelector('#detailModal textarea').value = text;
+    }
+
+    loadTestData();
+</script>
+
+<!-- 详情弹窗 -->
+<div id="detailModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="px-6 py-4 border-b border-slate-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 id="detailTitle" class="text-lg font-bold text-slate-800">5.1.1 活期支取额度检查</h2>
+                    <p id="detailId" class="text-xs text-slate-500 mt-1">活期支取_001</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-slate-500">置信度</span>
+                        <span class="text-sm font-bold text-orange-600">6.5分</span>
+                    </div>
+                    <span id="detailStatus" class="px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">待人工复核</span>
+                    <button onclick="closeDetail()" class="p-1 hover:bg-slate-100 rounded transition-colors">
+                        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-6">
+            
+            <div class="mb-4">
+                <div id="detailInfo" class="bg-slate-50 rounded-lg p-4 space-y-2"></div>
+            </div>
+            
+            <div class="mb-4">
+                <h3 class="text-sm font-semibold text-slate-800 mb-2 flex items-center">
+                    <svg class="w-4 h-4 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                    反思智能体
+                </h3>
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
+                    <p class="text-sm text-slate-700">金额字段不能为负数，请检查</p>
+                    <button onclick="copyToFeedback('金额字段不能为负数，请检查')" class="px-3 py-1.5 bg-white border border-amber-300 text-amber-700 rounded text-xs font-medium hover:bg-amber-100 transition-colors ml-4">
+                        一键加入经验反馈
+                    </button>
+                </div>
+            </div>
+            
+            <div>
+                <h3 class="text-sm font-semibold text-slate-800 mb-2 flex items-center">
+                    <svg class="w-4 h-4 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    人工复核
+                </h3>
+                <div class="flex gap-3">
+                    <button onclick="submitReview('approve')" class="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors shadow-sm">
+                        通过
+                    </button>
+                    <button onclick="submitReview('reject')" class="flex-1 px-4 py-2.5 text-orange-700 border-2 border-orange-300 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors shadow-sm" style="background-color: rgb(254, 236, 212);">
+                        重新生成
+                    </button>
+                </div>
+                <textarea rows="3" placeholder="经验反馈" class="w-full mt-3 px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"></textarea>
+            </div>
+        </div>
+    </div>
+</div>

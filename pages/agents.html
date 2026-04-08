@@ -1,0 +1,426 @@
+<div id="app" class="flex gap-6 h-[calc(100vh-180px)]">
+    <div class="flex-1 flex flex-col min-w-0">
+        <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
+            <i data-lucide="workflow" class="w-5 h-5 mr-2 text-blue-500"></i>
+            多智能体协作工作流
+            <span class="ml-3 text-xs text-slate-400 font-normal">Vue Canvas</span>
+        </h3>
+
+        <div class="flex-1 glass-card rounded-2xl overflow-hidden relative" ref="canvasContainer" style="min-height: 500px;">
+            <svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 1;">
+                <defs>
+                    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                        <circle cx="1" cy="1" r="1" fill="#cbd5e1"/>
+                    </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)"/>
+            </svg>
+
+            <svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 2;">
+                <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+                    </marker>
+                </defs>
+                <path v-for="conn in connections" :key="conn.id"
+                    :d="getConnectionPath(conn)"
+                    :stroke="selectedEdge === conn.id ? '#3b82f6' : conn.color"
+                    :stroke-width="selectedEdge === conn.id ? '3' : '2'"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                    class="cursor-pointer"
+                    @click="selectEdge(conn.id)"
+                />
+            </svg>
+
+            <div class="absolute inset-0" style="z-index: 3;">
+                <div v-for="node in nodes" :key="node.id"
+                    class="absolute cursor-grab select-none transition-shadow hover:shadow-lg"
+                    :style="{ left: node.x + 'px', top: node.y + 'px' }"
+                    @mousedown.prevent="startDrag(node, $event)"
+                    @click="selectNode(node)"
+                    :class="{'ring-4 ring-blue-400 ring-offset-2 rounded-xl': selectedNode === node.id}"
+                >
+                    <div :class="['bg-white rounded-xl shadow-md overflow-hidden w-32 border-2', node.borderColor]">
+                        <div :class="['px-3 py-2 flex items-center justify-between', node.headerColor]">
+                            <div class="flex items-center">
+                                <i :data-lucide="node.icon" class="w-4 h-4 text-white mr-2"></i>
+                                <span class="text-white text-xs font-bold">{{ node.label }}</span>
+                            </div>
+                            <div class="w-2 h-2 rounded-full bg-white/50"></div>
+                        </div>
+                        <div class="p-3 text-center">
+                            <div class="text-[10px] text-slate-500">{{ node.title }}</div>
+                            <div class="text-xs text-slate-700 font-medium">{{ node.subtitle }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="w-[400px] flex flex-col">
+        <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
+            <i data-lucide="settings-2" class="w-5 h-5 mr-2 text-slate-500"></i>
+            <span id="agent-title">智能体配置</span>
+        </h3>
+
+        <div class="flex-1 glass-card rounded-2xl p-5 flex flex-col overflow-hidden">
+            <div class="flex-1 overflow-y-auto">
+                <div id="agent-header" class="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
+                    <div class="flex items-center">
+                        <div id="agent-icon-bg" class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mr-3">
+                            <i id="agent-icon" data-lucide="map" class="w-5 h-5 text-blue-600"></i>
+                        </div>
+                        <div>
+                            <div id="agent-name" class="font-bold text-slate-800">规划智能体</div>
+                            <div id="agent-desc" class="text-xs text-slate-500">负责任务拆解与流程编排</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div id="agent-status" class="flex items-center">
+                            <div class="w-2 h-2 rounded-full bg-emerald-400 mr-1.5"></div>
+                            <span class="text-xs text-emerald-600 font-medium">就绪</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col mb-4">
+                    <label class="text-xs font-bold text-slate-700 mb-2 flex items-center">
+                        <i data-lucide="terminal" class="w-3 h-3 mr-1"></i>
+                        Prompt 提示词
+                    </label>
+                    <textarea id="prompt-editor" class="flex-1 w-full p-3 border border-slate-200 rounded-xl text-xs text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500" style="min-height: 120px;">你是一个专业的任务规划智能体。请根据用户输入的需求进行分析：
+1. 识别需求类型和业务领域
+2. 拆解为可执行的子任务
+3. 确定需要的工具和数据源
+4. 评估任务优先级
+输出格式（JSON）：</textarea>
+                    <button onclick="savePrompt()" class="mt-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition-colors">保存</button>
+                </div>
+
+                <div class="border-t border-slate-200 pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="text-xs font-bold text-slate-700 flex items-center">
+                            <i data-lucide="git-branch" class="w-3 h-3 mr-1"></i>
+                            连接管理
+                        </label>
+                        <button @click="addConnection" class="text-xs px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded transition-colors">+ 添加</button>
+                    </div>
+
+                    <div class="space-y-2">
+                        <div v-for="conn in connections" :key="conn.id"
+                            class="p-2 rounded-lg border transition-all cursor-pointer"
+                            :class="selectedEdge === conn.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'"
+                            @click="selectEdge(conn.id)"
+                        >
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs text-slate-500">连接 {{ conn.id }}</span>
+                                <button @click.stop="deleteConnection(conn.id)" class="text-red-500 hover:text-red-700 text-xs">删除</button>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <select v-model="conn.from" @change="updateEdge(conn)" class="flex-1 text-xs p-1 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                    <option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.label }}</option>
+                                </select>
+                                <span class="text-slate-400">→</span>
+                                <select v-model="conn.to" @change="updateEdge(conn)" class="flex-1 text-xs p-1 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                    <option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.label }}</option>
+                                </select>
+                            </div>
+                            <div class="mt-2">
+                                <label class="text-[10px] text-slate-500">颜色：</label>
+                                <input type="color" v-model="conn.color" @change="updateEdge(conn)" class="ml-2 w-6 h-6 rounded cursor-pointer">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, onMounted, onUnmounted } = Vue;
+
+    createApp({
+        setup() {
+            const canvasContainer = ref(null);
+            const selectedNode = ref(null);
+            const selectedEdge = ref(null);
+            const dragging = ref(null);
+            const dragOffset = ref({ x: 0, y: 0 });
+
+            const nodes = ref([
+                { id: 'input', x: 40, y: 150, label: 'Input', title: '输入', subtitle: '需求', icon: 'play', headerColor: 'bg-slate-700', borderColor: 'border-slate-500' },
+                { id: 'tool', x: 180, y: 40, label: 'Tool', title: '工具智能体', subtitle: '实体识别/检索', icon: 'wrench', headerColor: 'bg-emerald-500', borderColor: 'border-emerald-500' },
+                { id: 'memory', x: 180, y: 260, label: 'Memory', title: '规则记忆', subtitle: '业务规则库', icon: 'database', headerColor: 'bg-indigo-500', borderColor: 'border-indigo-500' },
+                { id: 'plan', x: 380, y: 150, label: 'Plan', title: '规划智能体', subtitle: '任务拆解', icon: 'map', headerColor: 'bg-blue-500', borderColor: 'border-blue-500' },
+                { id: 'gen', x: 580, y: 150, label: 'Generator', title: '生成智能体', subtitle: '案例生成', icon: 'pen-tool', headerColor: 'bg-purple-500', borderColor: 'border-purple-500' },
+                { id: 'reflect', x: 580, y: 40, label: 'Reflect', title: '反思智能体', subtitle: '质量评估', icon: 'search', headerColor: 'bg-orange-500', borderColor: 'border-orange-500' },
+                { id: 'output', x: 780, y: 150, label: 'Output', title: '输出', subtitle: '测试案例', icon: 'file-check', headerColor: 'bg-slate-700', borderColor: 'border-slate-500' },
+            ]);
+
+            const connections = ref([
+                { id: 'c1', from: 'input', to: 'plan', color: '#64748b' },
+                { id: 'c2', from: 'plan', to: 'tool', color: '#3b82f6' },
+                { id: 'c4', from: 'plan', to: 'memory', color: '#6366f1' },
+                { id: 'c6', from: 'plan', to: 'gen', color: '#8b5cf6' },
+                { id: 'c8', from: 'reflect', to: 'plan', color: '#f97316' },
+                { id: 'c10', from: 'plan', to: 'output', color: '#14b8a6' },
+            ]);
+
+            const getNodeById = (id) => nodes.value.find(n => n.id === id);
+
+            const getNodeCenter = (id) => {
+                const node = getNodeById(id);
+                if (!node) return { x: 0, y: 0 };
+                return { x: node.x + 64, y: node.y + 55 };
+            };
+
+            const getConnectionPath = (conn) => {
+                const from = getNodeCenter(conn.from);
+                const to = getNodeCenter(conn.to);
+                const dx = to.x - from.x;
+                const cx1 = from.x + Math.abs(dx) * 0.4;
+                const cx2 = to.x - Math.abs(dx) * 0.4;
+                return `M ${from.x} ${from.y} C ${cx1} ${from.y}, ${cx2} ${to.y}, ${to.x} ${to.y}`;
+            };
+
+            const startDrag = (node, event) => {
+                dragging.value = node;
+                const rect = event.target.closest('.absolute').getBoundingClientRect();
+                dragOffset.value = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+            };
+
+            const selectNode = (node) => {
+                selectedNode.value = node.id;
+                selectedEdge.value = null;
+                updateRightPanel(node.id);
+            };
+
+            const selectEdge = (edgeId) => {
+                selectedEdge.value = edgeId;
+                selectedNode.value = null;
+            };
+
+            const addConnection = () => {
+                const newId = 'c' + (connections.value.length + 1);
+                const availableNodes = nodes.value.map(n => n.id);
+                const newConn = {
+                    id: newId,
+                    from: availableNodes[0],
+                    to: availableNodes[1] || availableNodes[0],
+                    color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')
+                };
+                connections.value.push(newConn);
+                selectedEdge.value = newId;
+            };
+
+            const deleteConnection = (id) => {
+                connections.value = connections.value.filter(c => c.id !== id);
+                if (selectedEdge.value === id) selectedEdge.value = null;
+            };
+
+            const updateEdge = (conn) => {
+                // Trigger reactivity update
+                connections.value = [...connections.value];
+            };
+
+            const updateRightPanel = (nodeId) => {
+                const configs = {
+                    tool: { 
+                        name: '工具智能体', 
+                        desc: '执行向量检索与数据匹配', 
+                        icon: 'wrench', 
+                        color: 'emerald',
+                        prompt: '你是一个向量检索工具智能体，负责从向量数据库中检索与当前任务相关的历史测试案例和业务规则。\n\n# 你的职责\n1. 理解用户输入的需求\n2. 从向量库中检索相似度最高的历史测试案例\n3. 返回检索结果供其他智能体使用\n\n# 输出格式\n返回检索到的历史案例列表，每个案例包含：\n- 案例ID\n- 案例内容\n- 相似度得分'
+                    },
+                    memory: { 
+                        name: '规则记忆', 
+                        desc: '存储和管理业务规则', 
+                        icon: 'database', 
+                        color: 'indigo',
+                        prompt: '你是一个规则记忆智能体，负责管理和检索业务规则。\n\n# 你的职责\n1. 存储已确认的业务规则\n2. 提供规则查询服务\n3. 维护规则的版本和状态\n\n# 存储的规则类型\n- 业务规则\n- 交易限额规则\n- 风险控制规则'
+                    },
+                    plan: { 
+                        name: '规划智能体', 
+                        desc: '负责任务拆解与流程编排', 
+                        icon: 'map', 
+                        color: 'blue',
+                        prompt: `你是一个专业的测试案例规划智能体，负责任务分析与拆解。
+
+# 你的职责
+1. 理解用户输入的需求条目和交易名称
+2. 分析需求的业务逻辑和测试要点
+3. 拆解为可执行的测试案例生成任务
+4. 确定每个测试案例的类型（正向/反向）和测试要素
+
+# 分析维度
+## 需求分析
+- 识别需求中的业务规则和约束条件
+- 提取关键字段和参数
+- 识别边界值和等价类
+
+## 测试点拆解
+- 正向测试：验证正常业务流程
+- 反向测试：验证异常情况处理
+- 边界测试：验证临界条件
+
+## 测试类型判断
+- 业务场景类：验证业务流程完整性
+- 业务规则类：验证规则执行准确性
+
+# 输出格式
+根据分析结果，输出测试案例生成计划：
+- 计划ID
+- 需求摘要
+- 测试要点列表
+- 预计案例数量
+- 优先级排序
+
+# 注意事项
+1. 确保测试点覆盖需求的各个维度
+2. 避免测试点重复或遗漏
+3. 明确每个测试点的验证目标`
+                    },
+                    gen: { 
+                        name: '生成智能体', 
+                        desc: '基于上下文生成测试案例', 
+                        icon: 'pen-tool', 
+                        color: 'purple',
+                        prompt: `请根据任务中的需求条目和交易名称以及案例格式生成功能测试案例
+
+#测试要点
+1、用"验证："开头，不能有不确定词汇比如是否、尝试等，而是直接说明结果，如交易失败或交易成功
+2、测试要点与对应需求条目有明确关联关系，不要进行无关的扩展和联想
+3、测试要点不能重复
+4、涉及具体金额，等价类边界值处理时，包含金额等于、金额+-0.01
+
+#操作步骤
+从测试人员操作的角度描述步骤；需求中没有明确具体的步骤或按钮名称时，输出的也不明确具体的步骤或按钮名称
+测试步骤有多个时，每个测试步骤结尾增加换行符，如：
+1、XXXX
+2、XXXX
+
+#预期结果
+1、预期结果的每一步需要和操作步骤的每一步对应
+2、需求中没有明确具体的提示信息时，输出的预期结果也不明确具体的提示信息
+3、预期结果有多个时，每个预期结果结尾增加换行符
+
+#案例类型
+业务场景、业务规则
+
+#案例性质
+正向案例、反向案例
+
+#测试数据
+测试数据用字母代替（如：账户A）
+
+#功能要素
+每条测试案例只输出一个功能要素
+
+#案例类型
+案例类型要一致
+
+# 案例格式：
+&测试要点：
+&前置条件：
+&测试数据：
+&操作步骤：1.
+&预期结果：1.
+&功能要素：
+&案例类型：
+&案例性质：
+$`
+                    },
+                    reflect: { 
+                        name: '反思智能体', 
+                        desc: '质量评估与经验提炼', 
+                        icon: 'search', 
+                        color: 'orange',
+                        prompt: `你是一个测试案例评审专家，任务是检查功能测试案例是否存在问题，并指出具体问题及改进建议。
+
+# 评审规则
+1. 严格按照格式输出，禁止出现不确定词汇（如是否、能否、尝试、确保），一个测试点就只有一个验证点，禁止多个验证点合并，如果存在一定要回答一条必须一个测试点只有一个验证点，禁止多个验证点合并。
+2. 需求条目包含的字段一定要体现在案例中，不要遗漏，同时不要进行无关的扩展和联想。
+3. 测试意图不能直接照搬需求条目。
+4. 操作步骤合理，逐条与预期结果对应。
+5. 检查案例唯一性（要考虑同义词，如低于和不足，是一样的）及必填字段（如前置条件）是否缺失。
+
+# 输入
+需求条目和测试案例内容（包括测试要点、测试数据、操作步骤、预期结果等字段）。
+
+# 输出
+- 如果没有问题：明确说明"无问题"。
+- 如果有问题：列出具体问题及改进建议，每条问题独立成行。
+- 评审结果只指出关键的问题，不要输出大量问题个数。
+- 一定要检查格式，如果格式有问题，一定要指出来！
+
+# 置信度得分
+根据评审结果，输出置信度得分（0-10分）。`
+                    },
+                };
+                const config = configs[nodeId];
+                if (!config) return;
+                document.getElementById('agent-name').textContent = config.name;
+                document.getElementById('agent-desc').textContent = config.desc;
+                document.getElementById('agent-icon').setAttribute('data-lucide', config.icon);
+                document.getElementById('agent-icon-bg').className = `w-10 h-10 rounded-lg bg-${config.color}-50 flex items-center justify-center mr-3`;
+                document.getElementById('agent-icon').className = `w-5 h-5 text-${config.color}-600`;
+                document.getElementById('prompt-editor').value = config.prompt;
+                lucide.createIcons();
+            };
+
+            const handleMouseMove = (event) => {
+                if (!dragging.value || !canvasContainer.value) return;
+                const parentRect = canvasContainer.value.getBoundingClientRect();
+                let x = event.clientX - parentRect.left - dragOffset.value.x;
+                let y = event.clientY - parentRect.top - dragOffset.value.y;
+                x = Math.max(0, Math.min(x, parentRect.width - 128));
+                y = Math.max(0, Math.min(y, parentRect.height - 90));
+                dragging.value.x = x;
+                dragging.value.y = y;
+            };
+
+            const handleMouseUp = () => { dragging.value = null; };
+
+            onMounted(() => {
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+                lucide.createIcons();
+            });
+
+            onUnmounted(() => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            });
+
+            return {
+                canvasContainer,
+                nodes,
+                connections,
+                selectedNode,
+                selectedEdge,
+                getConnectionPath,
+                startDrag,
+                selectNode,
+                selectEdge,
+                addConnection,
+                deleteConnection,
+                updateEdge
+            };
+        }
+    }).mount('#app');
+
+    function savePrompt() {
+        const btn = event.target;
+        btn.textContent = '已保存!';
+        btn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+        btn.classList.add('bg-emerald-500');
+        setTimeout(() => {
+            btn.textContent = '保存';
+            btn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            btn.classList.remove('bg-emerald-500');
+        }, 1500);
+    }
+</script>
